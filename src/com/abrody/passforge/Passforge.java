@@ -10,7 +10,13 @@ import javax.crypto.SecretKey;
 import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.PBEKeySpec;
 
-import android.os.SystemClock;
+/* import android.os.SystemClock; */
+
+class SystemClock {
+	static public long uptimeMillis() {
+		return System.currentTimeMillis();
+	}
+}
 
 class PassforgeException extends GeneralSecurityException {
 	public PassforgeException(String message) {
@@ -34,7 +40,11 @@ public class Passforge {
 		}
 	}
 	
-	public Passforge(String password, byte[] salt, int iterations) throws GeneralSecurityException {
+	public Passforge(String password, byte[] salt, int iterations) {
+		Passforge(password, salt, iterations, 20);
+	}
+	
+	public Passforge(String password, byte[] salt, int iterations, int length) throws GeneralSecurityException {
 		
 		// Argument validation
 		if (password.length() == 0) {
@@ -57,7 +67,13 @@ public class Passforge {
 
 	}
 	
-	public String deriveKey() throws GeneralSecurityException {
+	public String generatePassword() throws GeneralSecurityException {
+		byte[] derivedKey = deriveKey();
+		generatedPassword = byteArrayToString(derivedKey);
+		return generatedPassword;
+	}
+
+	public byte[] deriveKey() throws GeneralSecurityException {
 		byte[] derivedKey;
 		
 		startTime = SystemClock.uptimeMillis();
@@ -65,9 +81,8 @@ public class Passforge {
 		derivedKey = generator.generateKey(password, salt);
 		
 		endTime = SystemClock.uptimeMillis();
-		
-		generatedPassword = byteArrayToString(derivedKey);
-		return generatedPassword;
+
+		return derivedKey;
 	}
 	
 	public float getElapsedSeconds() {
@@ -88,9 +103,7 @@ public class Passforge {
 		return generatedPassword;
 	}
 
-	public static void main(String[] args) throws NoSuchAlgorithmException, InvalidKeySpecException {
-		args = new String[1];
-		args[0] = "password";
+	public static void main(String[] args) throws GeneralSecurityException {
 		byte[] salt = "salt".getBytes();
 		
 		if (args.length < 1) {
@@ -102,10 +115,9 @@ public class Passforge {
 		System.out.println("password: " + pass);
 		System.out.println("salt: " + new String(salt));
 		printByteArray("salt bytes: ", salt);
-		
-		//byte[] key = deriveKey(pass.toCharArray(), salt, 1, 8 * 20);
-		
-		byte[] key = null;
+
+		Passforge p = new Passforge(pass, salt, 1);
+		byte[] key = p.deriveKey();
 		
 		int[] test0i = {0x0c, 0x60, 0xc8, 0x0f, 0x96, 0x1f, 0x0e, 0x71, 0xf3, 0xa9, 0xb5, 0x24, 0xaf, 0x60, 0x12, 0x06, 0x2f, 0xe0, 0x37, 0xa6};
 		byte[] test0 = intArrayToByteArray(test0i);
