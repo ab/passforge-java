@@ -1,9 +1,7 @@
 package com.abrody.passforge;
 
 import java.security.GeneralSecurityException;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
+import java.util.concurrent.Callable;
 
 import com.abrody.passforge.Passforge;
 import com.abrody.passforge.R;
@@ -46,6 +44,11 @@ public class PassforgeActivity extends Activity implements OnClickListener, OnIt
 	protected ProgressDialog pd;
 	
 	/**
+	 * Whether the generation job is running.
+	 */
+	protected boolean taskRunning;
+	
+	/**
 	 * Speed in iterations per second of last computation.
 	 */
 	protected int iterationSpeed;
@@ -72,6 +75,7 @@ public class PassforgeActivity extends Activity implements OnClickListener, OnIt
     	setIterations(settings.getInt("iterations", 10000));
     	spinner.setSelection(settings.getInt("iterations_pos", defaultPosition));
     	
+    	// Load the performance metrics from last session, if any.
     	loadPerformance();
     }
     
@@ -95,18 +99,22 @@ public class PassforgeActivity extends Activity implements OnClickListener, OnIt
     }
     
     public void generatePassword() {
+    	// Do nothing if we're already running.
+    	if (taskRunning) {
+    		return;
+    	}
+    	
+    	// Get salt and master password from widgets.
     	EditText eSalt = (EditText)findViewById(R.id.editSalt);
     	EditText ePass = (EditText)findViewById(R.id.editMaster);
-    	
     	String pass = ePass.getText().toString();
     	String salt = eSalt.getText().toString();
     	
-    	int iterations = 1;
-    	
+    	int iterations;
     	try {
     		iterations = getIterations();
     	} catch (NumberFormatException e) {
-    		
+    		iterations = 1;
     	}
     	
     	Passforge p;
@@ -130,9 +138,18 @@ public class PassforgeActivity extends Activity implements OnClickListener, OnIt
     
     private void createProgressDialog(int iterations) {
     	float expectedTime = ((float) iterations / this.iterationSpeed);
+    	
+    	// Figure out whether seconds should be plural
+    	String timeString = String.format("%.0f", expectedTime);
+    	boolean plural = true;
+    	if (timeString.equals("1")) {
+    		plural = false; 
+    	}
+    	
     	pd = ProgressDialog.show(this,
     			"Generating password...",
-    			String.format("Estimated time: %.0f seconds.  Press back to cancel.", expectedTime),
+    			String.format("Estimated time: %s second%s.\nPress back to cancel.",
+    					timeString, plural ? "s" : ""),
     			true, true, this);
     }
     
@@ -153,6 +170,7 @@ public class PassforgeActivity extends Activity implements OnClickListener, OnIt
     	@Override
     	protected void onPreExecute() {
     		createProgressDialog(forge.iterations);
+    		taskRunning = true;
     	}
     	
     	/**
@@ -161,7 +179,7 @@ public class PassforgeActivity extends Activity implements OnClickListener, OnIt
     	@Override
     	protected Void doInBackground(Void ... unused) {
     		try {
-				forge.deriveKey();
+				forge.generatePassword();
 			} catch (GeneralSecurityException e) {
 			}
 			return null;
@@ -185,6 +203,7 @@ public class PassforgeActivity extends Activity implements OnClickListener, OnIt
     		
     		// Display results.
     		showGeneratedPassword(forge.getGeneratedPassword(), forge.getElapsedSeconds());
+    		taskRunning = false;
     	}
     	
     	/**
@@ -194,6 +213,7 @@ public class PassforgeActivity extends Activity implements OnClickListener, OnIt
     	protected void onCancelled() {
     		// TODO: display this with something else?
     		popToast("cancelled", false);
+    		taskRunning = false;
     	}
     	
     }
@@ -244,7 +264,9 @@ public class PassforgeActivity extends Activity implements OnClickListener, OnIt
 	 * @param seconds
 	 */
 	private void savePerformance(int iterations, float seconds) {
-		this.iterationSpeed = (int) (iterations / seconds);
+		// Average the latest performance with all prior performance.
+		int newspeed = (int) (iterations / seconds);
+		this.iterationSpeed = (newspeed + iterationSpeed) / 2;
 		SharedPreferences.Editor editor = settings.edit();
 		editor.putInt("iteration_speed", iterationSpeed);
 		editor.commit();
@@ -254,7 +276,7 @@ public class PassforgeActivity extends Activity implements OnClickListener, OnIt
 	 * Load the last performance from saved settings.
 	 */
 	private void loadPerformance() {
-		this.iterationSpeed = settings.getInt("iteration_speed", 4000);
+		this.iterationSpeed = settings.getInt("iteration_speed", 2000);
 	}
 	
 	private void setCustomIterations(boolean customEnabled) {
@@ -271,5 +293,12 @@ public class PassforgeActivity extends Activity implements OnClickListener, OnIt
 		
 		// TODO: save this to a UI element instead of popping up a toast.
 		popToast(text, true);
+	}
+}
+
+/* Helper for Passforge timing information */
+class AndroidSystemClock implements Callable<Long> {
+	public Long call() {
+		return android.os.SystemClock.uptimeMillis();
 	}
 }

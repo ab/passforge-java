@@ -1,28 +1,39 @@
 package com.abrody.passforge;
 
 import java.security.GeneralSecurityException;
-import java.security.NoSuchAlgorithmException;
-import java.security.spec.InvalidKeySpecException;
-import java.security.spec.KeySpec;
 import java.util.Arrays;
-
-import javax.crypto.SecretKey;
-import javax.crypto.SecretKeyFactory;
-import javax.crypto.spec.PBEKeySpec;
-
-/* import android.os.SystemClock; */
-
-class SystemClock {
-	static public long uptimeMillis() {
-		return System.currentTimeMillis();
-	}
-}
+import java.util.concurrent.Callable;
 
 class PassforgeException extends GeneralSecurityException {
+	private static final long serialVersionUID = 1L;
+
 	public PassforgeException(String message) {
 		super(message);
 	}
 }
+
+/**
+ * Passforge needs a way to provide timing information.
+ * 
+ * This can be provided by android.os.SystemClock.uptimeMillis() or this
+ * call to System.currentTimeMillis();
+ * 
+ * If only Java had functions as first-class objects...
+ */
+class StandardSystemClock implements Callable<Long> {
+	public Long call() {
+		return System.currentTimeMillis();
+	}
+}
+
+/*
+// Example Android-based clock
+class AndroidSystemClock implements Callable<Long> {
+	public Long call() {
+		return android.os.SystemClock.uptimeMillis();
+	}
+}
+*/
 
 public class Passforge {
 	private long startTime;
@@ -32,6 +43,7 @@ public class Passforge {
 	private byte[] salt;
 	private String generatedPassword;
 	public int iterations;
+	Callable<Long> getMillisFunc;
 	
 	public class PassforgeException extends Exception {
 		private static final long serialVersionUID = 1L;
@@ -40,11 +52,12 @@ public class Passforge {
 		}
 	}
 	
-	public Passforge(String password, byte[] salt, int iterations) {
-		Passforge(password, salt, iterations, 20);
+	public Passforge(String password, byte[] salt, int iterations) throws GeneralSecurityException {
+		this(password, salt, iterations, 20, new StandardSystemClock());
 	}
 	
-	public Passforge(String password, byte[] salt, int iterations, int length) throws GeneralSecurityException {
+	public Passforge(String password, byte[] salt, int iterations, int length,
+			Callable<Long> getMillis) throws GeneralSecurityException {
 		
 		// Argument validation
 		if (password.length() == 0) {
@@ -61,6 +74,7 @@ public class Passforge {
 		this.password = password;
 		this.salt = salt;
 		this.iterations = iterations;
+		this.getMillisFunc = getMillis;
 		
 		startTime = 0;
 		endTime = 0;
@@ -76,13 +90,22 @@ public class Passforge {
 	public byte[] deriveKey() throws GeneralSecurityException {
 		byte[] derivedKey;
 		
-		startTime = SystemClock.uptimeMillis();
+		startTime = getMillis();
 		
 		derivedKey = generator.generateKey(password, salt);
 		
-		endTime = SystemClock.uptimeMillis();
+		endTime = getMillis();
 
 		return derivedKey;
+	}
+	
+	public long getMillis() {
+		try {
+			return getMillisFunc.call();
+		} catch (Exception e) {
+			// Exception is discarded
+			return -1;
+		}
 	}
 	
 	public float getElapsedSeconds() {
@@ -96,7 +119,7 @@ public class Passforge {
 		if (startTime == 0) {
 			return Float.NaN;
 		}
-		return (SystemClock.uptimeMillis() - startTime) / 1000;
+		return (getMillis() - startTime) / 1000;
 	}
 	
 	public String getGeneratedPassword() {
