@@ -36,25 +36,25 @@ import javax.crypto.spec.SecretKeySpec;
 /**
  * Simple implementation of PBKDF2 based on specs here:
  * ftp://ftp.rsasecurity.com/pub/pkcs/pkcs-5v2/pkcs5v2-0.pdf
- * 
+ *
  * Should be usable with any JCE supported HMAC, keylength, and iterations.
- * 
+ *
  * @author braiden
  *
  */
 
 public class PBKDF2KeyGenerator {
-	
+
 	private int keyLengthBytes;
 	private int iterations;
 	private Mac hmac;
-	
+
 	public PBKDF2KeyGenerator(int keyLengthBytes, int iterations, String hmacAlgorith) throws GeneralSecurityException	{
 		this.keyLengthBytes = keyLengthBytes;
 		this.iterations = iterations;
 		this.hmac = Mac.getInstance(hmacAlgorith);
 	}
-	
+
 	public byte[] generateKey(String secret, byte[] salt) throws GeneralSecurityException {
 		SecretKey key = new SecretKeySpec(secret.getBytes(), hmac.getAlgorithm());
 		byte[] result = new byte[keyLengthBytes];
@@ -64,19 +64,19 @@ public class PBKDF2KeyGenerator {
 		byte[] intermediateResult = new byte[hmac.getMacLength()];
 
 		System.arraycopy(salt, 0, initialHashInput, 0, salt.length);
-		
+
 		for (int count = 1, bytesRemaining = keyLengthBytes; bytesRemaining > 0; count++) {
-			
+
 			initialHashInput[salt.length + 0] = (byte)(count >>> 24);
 			initialHashInput[salt.length + 1] = (byte)(count >>> 16);
 			initialHashInput[salt.length + 2] = (byte)(count >>> 8);
 			initialHashInput[salt.length + 3] = (byte)(count);
-			
+
 			hmac.init(key);
 			hmac.update(initialHashInput);
 			hmac.doFinal(hash1, 0);
 			System.arraycopy(hash1, 0, intermediateResult, 0, hash1.length);
-			
+
 			for (int iter = 1; iter < this.iterations; iter++) {
 				hmac.init(key);
 				hmac.update(hash1);
@@ -86,7 +86,7 @@ public class PBKDF2KeyGenerator {
 					intermediateResult[n] ^= hash1[n];
 				}
 			}
-			
+
 			int len = intermediateResult.length < bytesRemaining ? intermediateResult.length : bytesRemaining;
 			int offset = keyLengthBytes - bytesRemaining;
 			System.arraycopy(intermediateResult, 0, result, offset, len);
@@ -99,7 +99,7 @@ public class PBKDF2KeyGenerator {
 		Arrays.fill(hash2, (byte)0);
 		Arrays.fill(intermediateResult, (byte)0);
 		Arrays.fill(initialHashInput, (byte)0);
-		
+
 		return result;
 	}
 
@@ -114,5 +114,5 @@ public class PBKDF2KeyGenerator {
 	public Mac getHmac() {
 		return hmac;
 	}
-	
+
 }
