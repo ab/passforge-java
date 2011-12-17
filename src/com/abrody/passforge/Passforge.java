@@ -4,6 +4,7 @@ import java.security.GeneralSecurityException;
 import java.util.Arrays;
 import java.util.concurrent.Callable;
 
+
 class PassforgeException extends GeneralSecurityException {
     private static final long serialVersionUID = 1L;
 
@@ -41,6 +42,7 @@ public class Passforge {
     private PBKDF2KeyGenerator generator;
     private String password;
     private byte[] salt;
+    private int length;
     private String generatedPassword;
     public int iterations;
     Callable<Long> getMillisFunc;
@@ -52,8 +54,9 @@ public class Passforge {
         }
     }
 
-    public Passforge(String password, byte[] salt, int iterations) throws GeneralSecurityException {
-        this(password, salt, iterations, 20, new StandardSystemClock());
+    public Passforge(String password, byte[] salt, int iterations, int length)
+            throws GeneralSecurityException {
+        this(password, salt, iterations, length, new StandardSystemClock());
     }
 
     public Passforge(String password, byte[] salt, int iterations, int length,
@@ -69,21 +72,26 @@ public class Passforge {
         if (iterations <= 0) {
             iterations = 1;
         }
+        if (length <= 0) {
+            length = 1;
+        }
 
-        this.generator = new PBKDF2KeyGenerator(20, iterations, "HMACSHA1");
+        int byteLength = (int) Math.ceil((float) length * 3 / 4);
+        this.generator = new PBKDF2KeyGenerator(byteLength, iterations, "HMACSHA1");
+
         this.password = password;
         this.salt = salt;
         this.iterations = iterations;
+        this.length = length;
         this.getMillisFunc = getMillis;
 
         startTime = 0;
         endTime = 0;
-
     }
 
     public String generatePassword() throws GeneralSecurityException {
         byte[] derivedKey = deriveKey();
-        generatedPassword = byteArrayToString(derivedKey);
+        generatedPassword = Base64.encodeBytes(derivedKey).substring(0, length);
         return generatedPassword;
     }
 
@@ -127,21 +135,26 @@ public class Passforge {
     }
 
     public static void main(String[] args) throws GeneralSecurityException {
-        byte[] salt = "salt".getBytes();
-
-        if (args.length < 1) {
-            System.out.println("must supply password");
+        if (args.length < 4) {
+            System.out.println("usage: passforge PASSWORD SALT ITERATIONS LENGTH");
             System.exit(1);
         }
         String pass = args[0];
+        byte[] salt = args[1].getBytes();
+        int iterations = Integer.parseInt(args[2]);
+        int length = Integer.parseInt(args[3]);
 
+        /*
         System.out.println("password: " + pass);
         System.out.println("salt: " + new String(salt));
         printByteArray("salt bytes: ", salt);
+        */
 
-        Passforge p = new Passforge(pass, salt, 1);
+        Passforge p = new Passforge(pass, salt, iterations, length);
+        String gen = p.generatePassword();
+
+        /*
         byte[] key = p.deriveKey();
-
         int[] test0i = {0x0c, 0x60, 0xc8, 0x0f, 0x96, 0x1f, 0x0e, 0x71, 0xf3, 0xa9, 0xb5, 0x24, 0xaf, 0x60, 0x12, 0x06, 0x2f, 0xe0, 0x37, 0xa6};
         byte[] test0 = intArrayToByteArray(test0i);
 
@@ -153,6 +166,9 @@ public class Passforge {
         }
 
         printByteArray("derived key: ", key);
+        */
+
+        System.out.println(gen);
     }
 
     public static void printByteArray(String prefix, byte[] arr) {
