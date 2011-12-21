@@ -14,6 +14,7 @@ import android.content.SharedPreferences;
 import android.content.DialogInterface.OnCancelListener;
 import android.os.AsyncTask;
 import android.os.Bundle;
+import android.text.ClipboardManager;
 import android.util.Log;
 import android.view.Gravity;
 import android.view.View;
@@ -117,9 +118,17 @@ public class PassforgeActivity extends Activity implements OnClickListener, OnIt
             iterations = 1;
         }
 
+        // TODO
+        int length = 16;
+
+        // TODO: add length slider
+        // TODO: add show_password checkbox
+        // TODO: maybe add a "clear" button at bottom?
+
         Passforge p;
         try {
-            p = new Passforge(pass, salt.getBytes(), iterations);
+            p = new Passforge(pass, salt.getBytes(), iterations, length,
+            			      new AndroidSystemClock());
             mDeriveKeyTask = new DeriveKeyTask(p);
             mDeriveKeyTask.execute();
         } catch (GeneralSecurityException e) {
@@ -130,7 +139,6 @@ public class PassforgeActivity extends Activity implements OnClickListener, OnIt
         }
     }
 
-    @Override
     public void onCancel(DialogInterface dialog) {
         cancelDeriveKey();
         dialog.dismiss();
@@ -159,6 +167,7 @@ public class PassforgeActivity extends Activity implements OnClickListener, OnIt
         }
     }
 
+    // TODO: check for FC when orientation changes during key derivation
     private class DeriveKeyTask extends AsyncTask<Void, Void, Void> {
         private Passforge forge;
 
@@ -289,10 +298,20 @@ public class PassforgeActivity extends Activity implements OnClickListener, OnIt
     }
 
     private void showGeneratedPassword(String password, float elapsedSeconds) {
-        String text = password + String.format(" in %.2fs", elapsedSeconds);
+        String text = String.format("Generated in %.2fs\nCopied to clipboard", elapsedSeconds);
 
         // TODO: save this to a UI element instead of popping up a toast.
+        clipboardCopy(password);
         popToast(text, true);
+    }
+
+    private void clipboardCopy(String text) {
+    	// Get a handle to the clipboard service.
+    	ClipboardManager clipboard = (ClipboardManager)
+                getSystemService(Context.CLIPBOARD_SERVICE);
+
+    	// Copy the text to the clipboard
+    	clipboard.setText(text);
     }
 }
 
