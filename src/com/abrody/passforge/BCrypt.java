@@ -1,3 +1,5 @@
+package com.abrody.passforge;
+
 // Copyright (c) 2006 Damien Miller <djm@mindrot.org>
 //
 // Permission to use, copy, modify, and distribute this software for any
@@ -694,6 +696,41 @@ public class BCrypt {
 	}
 
 	/**
+	 * Encode a byte array as a salt String for use with the BCrypt.hashpw()
+	 * method.
+	 * @param salt	a byte array to encode
+	 * @param log_rounds	the log2 of the number of rounds of hashing
+	 * to apply - the work factor therefore increases as 2**log_rounds.
+	 * @return	an encoded salt value
+	 */
+	public static String encode_salt(byte salt[], int log_rounds) {
+		if (salt.length != BCRYPT_SALT_LEN)
+			throw new IllegalArgumentException("Invalid salt length");
+
+		StringBuffer rs = new StringBuffer();
+		rs.append("$2a$");
+		if (log_rounds < 10)
+			rs.append("0");
+		rs.append(Integer.toString(log_rounds));
+		rs.append("$");
+		rs.append(encode_base64(salt, salt.length));
+		return rs.toString();
+	}
+
+	/**
+	 * Encode a string as a salt string for use with the Bcrypt.hashpw()
+	 * method.
+	 * @param salt	a string to encode
+	 * @param log_rounds	the log2 of the number of rounds of hashing
+	 * to apply - the work factor therefore increases as 2**log_rounds.
+	 * @return	an encoded salt value
+	 */
+	public static String encode_salt(String salt, int log_rounds) {
+		// TODO: should we specify "utf-8" here? Is the default charset OK?
+		return encode_salt(salt.getBytes(), log_rounds);
+	}
+
+	/**
 	 * Generate a salt for use with the BCrypt.hashpw() method
 	 * @param log_rounds	the log2 of the number of rounds of
 	 * hashing to apply - the work factor therefore increases as
@@ -702,18 +739,9 @@ public class BCrypt {
 	 * @return	an encoded salt value
 	 */
 	public static String gensalt(int log_rounds, SecureRandom random) {
-		StringBuffer rs = new StringBuffer();
 		byte rnd[] = new byte[BCRYPT_SALT_LEN];
-
 		random.nextBytes(rnd);
-
-		rs.append("$2a$");
-		if (log_rounds < 10)
-			rs.append("0");
-		rs.append(Integer.toString(log_rounds));
-		rs.append("$");
-		rs.append(encode_base64(rnd, rnd.length));
-		return rs.toString();
+		return encode_salt(rnd, log_rounds);
 	}
 
 	/**
